@@ -7,9 +7,24 @@
 
 import SwiftUI
 
+import SwiftUI
+
 struct TipsView: View {
     var body: some View {
-        Text(/*@START_MENU_TOKEN@*/"Hello, World!"/*@END_MENU_TOKEN@*/)
+        NavigationStack {
+            List {
+                Section(header: Text("Today's AI Tips")) {
+                    Text("AI Predictions will appear here")
+                        .foregroundStyle(.secondary)
+                }
+                
+                Section(header: Text("Recommended Accumulators")) {
+                    Text("Accumulator suggestions will go here")
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .navigationTitle("Tips")
+        }
     }
 }
 
