@@ -1,0 +1,8 @@
+{
+    "sweetpad.build.xcodeWorkspacePath": "gameday.xcodeproj/project.xcworkspace",
+    "sweetpad.build.scheme": "gameday",
+    "sweetpad.build.destination": {
+        "id": "iossimulator-BBE385E2-6425-4E8D-8424-A0D7EB8A2F1F",
+        "type": "iOSSimulator"
+    }
+}
