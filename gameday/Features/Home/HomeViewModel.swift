@@ -32,7 +32,7 @@ final class HomeViewModel {
         if case .failed = state { state = .loading }
 
         do {
-            let matches = try await service.upcomingMatches(leagueIDs: leagueIDs)
+            let matches = try await service.matchesThisWeek(leagueIDs: leagueIDs)
             state = matches.isEmpty ? .empty : .loaded(matches)
         } catch is CancellationError {
             // View went away; leave state as-is.

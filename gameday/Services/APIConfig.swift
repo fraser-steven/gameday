@@ -22,8 +22,16 @@ enum APIConfig {
         return fallbackKey
     }
 
-    private static let fallbackKey = "3"
+    private static let fallbackKey = "123"
 
     /// Leagues shown on the Home screen (TheSportsDB league IDs).
-    static let leagueIDs = [MatchLeague.premierLeagueID, MatchLeague.laLigaID]
+    static let leagueIDs = [
+        MatchLeague.premierLeagueID,
+        MatchLeague.laLigaID,
+        MatchLeague.championsLeagueID,
+    ]
+
+    /// Season string TheSportsDB expects for `eventsround` / `eventsseason`
+    /// (the 2026/27 campaign).
+    static let currentSeason = "2026-2027"
 }

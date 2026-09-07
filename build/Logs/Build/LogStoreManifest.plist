@@ -6,6 +6,48 @@
 	<integer>12</integer>
 	<key>logs</key>
 	<dict>
+		<key>0DF787A3-68CE-4FC1-906C-66B5E2BBF78A</key>
+		<dict>
+			<key>className</key>
+			<string>IDECommandLineBuildLog</string>
+			<key>documentTypeString</key>
+			<string>&lt;nil&gt;</string>
+			<key>domainType</key>
+			<string>Xcode.IDEActivityLogDomainType.BuildLog</string>
+			<key>fileName</key>
+			<string>0DF787A3-68CE-4FC1-906C-66B5E2BBF78A.xcactivitylog</string>
+			<key>hasPrimaryLog</key>
+			<true/>
+			<key>primaryObservable</key>
+			<dict>
+				<key>highLevelStatus</key>
+				<string>W</string>
+				<key>totalNumberOfAnalyzerIssues</key>
+				<integer>0</integer>
+				<key>totalNumberOfErrors</key>
+				<integer>0</integer>
+				<key>totalNumberOfTestFailures</key>
+				<integer>0</integer>
+				<key>totalNumberOfWarnings</key>
+				<integer>7</integer>
+			</dict>
+			<key>schemeIdentifier-containerName</key>
+			<string>gameday project</string>
+			<key>schemeIdentifier-schemeName</key>
+			<string>gameday</string>
+			<key>schemeIdentifier-sharedScheme</key>
+			<integer>1</integer>
+			<key>signature</key>
+			<string>Building project gameday with scheme gameday and configuration Debug</string>
+			<key>timeStartedRecording</key>
+			<real>810464824.015342</real>
+			<key>timeStoppedRecording</key>
+			<real>810464828.50801396</real>
+			<key>title</key>
+			<string>Building project gameday with scheme gameday and configuration Debug</string>
+			<key>uniqueIdentifier</key>
+			<string>0DF787A3-68CE-4FC1-906C-66B5E2BBF78A</string>
+		</dict>
 		<key>3F73E4DA-0E44-46BC-A4F4-6B906E7CAF4F</key>
 		<dict>
 			<key>className</key>

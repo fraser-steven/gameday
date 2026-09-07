@@ -16,22 +16,25 @@ struct MatchLeague: Hashable {
     /// TheSportsDB league IDs the app fetches.
     static let premierLeagueID = "4328"
     static let laLigaID = "4335"
+    static let championsLeagueID = "4480"
 
     /// Short display name, tidying up TheSportsDB's verbose names.
     var shortName: String {
         switch id {
-        case Self.premierLeagueID: "Premier League"
-        case Self.laLigaID:        "La Liga"
-        default:                    name
+        case Self.premierLeagueID:  "Premier League"
+        case Self.laLigaID:         "La Liga"
+        case Self.championsLeagueID: "Champions League"
+        default:                     name
         }
     }
 
     /// Accent colour for the league badge on a card.
     var accentColor: Color {
         switch id {
-        case Self.premierLeagueID: Color(red: 0.22, green: 0.00, blue: 0.47) // PL purple
-        case Self.laLigaID:        Color(red: 0.90, green: 0.11, blue: 0.20) // La Liga red
-        default:                    .accentColor
+        case Self.premierLeagueID:  Color(red: 0.22, green: 0.00, blue: 0.47) // PL purple
+        case Self.laLigaID:         Color(red: 0.90, green: 0.11, blue: 0.20) // La Liga red
+        case Self.championsLeagueID: Color(red: 0.03, green: 0.09, blue: 0.36) // UCL navy
+        default:                     .accentColor
         }
     }
 }

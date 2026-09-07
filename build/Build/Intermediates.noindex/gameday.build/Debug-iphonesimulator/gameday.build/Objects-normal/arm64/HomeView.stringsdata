@@ -4,7 +4,7 @@
     "Localizable": [
       {
         "comment": "",
-        "key": "GameDay AI",
+        "key": "This Week",
         "location": {
           "startingColumn": 34,
           "startingLine": 14
@@ -12,7 +12,7 @@
       },
       {
         "comment": "",
-        "key": "No upcoming Premier League or La Liga matches were found.",
+        "key": "No Premier League, La Liga or Champions League matches are scheduled between now and Sunday.",
         "location": {
           "startingColumn": 35,
           "startingLine": 33
@@ -28,7 +28,7 @@
       },
       {
         "comment": "",
-        "key": "No Fixtures",
+        "key": "No Fixtures This Week",
         "location": {
           "startingColumn": 17,
           "startingLine": 31

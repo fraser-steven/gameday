@@ -16,6 +16,7 @@ struct Match: Identifiable, Hashable {
     let awayTeam: MatchTeam
     let kickoff: Date
     let round: Int?
+    let season: String?
     let venue: String?
     let status: MatchStatus
     let homeScore: Int?
@@ -29,7 +30,7 @@ extension Match: Decodable {
         case idEvent, strTimestamp, dateEvent, strTime
         case idLeague, strLeague, strLeagueBadge
         case strHomeTeam, strAwayTeam, strHomeTeamBadge, strAwayTeamBadge
-        case intHomeScore, intAwayScore, intRound
+        case intHomeScore, intAwayScore, intRound, strSeason
         case strVenue, strStatus, strPostponed
     }
 
@@ -66,6 +67,7 @@ extension Match: Decodable {
         ) ?? .distantFuture
 
         round = int(.intRound)
+        season = string(.strSeason)
         venue = string(.strVenue)
         status = MatchStatus(rawStatus: string(.strStatus), postponed: string(.strPostponed))
         homeScore = int(.intHomeScore)
