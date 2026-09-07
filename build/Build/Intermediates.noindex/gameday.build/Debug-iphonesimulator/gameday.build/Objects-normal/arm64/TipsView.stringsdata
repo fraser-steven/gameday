@@ -1,0 +1,48 @@
+{
+  "source": "/Users/frasersteven/gameday/gameday/TipsView.swift",
+  "tables": {
+    "Localizable": [
+      {
+        "comment": "",
+        "key": "Tips",
+        "location": {
+          "startingColumn": 30,
+          "startingLine": 26
+        }
+      },
+      {
+        "comment": "",
+        "key": "Today's AI Tips",
+        "location": {
+          "startingColumn": 38,
+          "startingLine": 16
+        }
+      },
+      {
+        "comment": "",
+        "key": "Recommended Accumulators",
+        "location": {
+          "startingColumn": 38,
+          "startingLine": 21
+        }
+      },
+      {
+        "comment": "",
+        "key": "AI Predictions will appear here",
+        "location": {
+          "startingColumn": 26,
+          "startingLine": 17
+        }
+      },
+      {
+        "comment": "",
+        "key": "Accumulator suggestions will go here",
+        "location": {
+          "startingColumn": 26,
+          "startingLine": 22
+        }
+      }
+    ]
+  },
+  "version": 1
+}

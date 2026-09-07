@@ -1,0 +1,32 @@
+{
+  "source": "/Users/frasersteven/gameday/gameday/ContentView.swift",
+  "tables": {
+    "Localizable": [
+      {
+        "comment": "",
+        "key": "Home",
+        "location": {
+          "startingColumn": 17,
+          "startingLine": 13
+        }
+      },
+      {
+        "comment": "",
+        "key": "Tips",
+        "location": {
+          "startingColumn": 17,
+          "startingLine": 17
+        }
+      },
+      {
+        "comment": "",
+        "key": "Settings",
+        "location": {
+          "startingColumn": 17,
+          "startingLine": 21
+        }
+      }
+    ]
+  },
+  "version": 1
+}

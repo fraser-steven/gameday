@@ -1,0 +1,56 @@
+{
+  "source": "/Users/frasersteven/gameday/gameday/Features/Home/HomeView.swift",
+  "tables": {
+    "Localizable": [
+      {
+        "comment": "",
+        "key": "GameDay AI",
+        "location": {
+          "startingColumn": 34,
+          "startingLine": 14
+        }
+      },
+      {
+        "comment": "",
+        "key": "No upcoming Premier League or La Liga matches were found.",
+        "location": {
+          "startingColumn": 35,
+          "startingLine": 33
+        }
+      },
+      {
+        "comment": "",
+        "key": "Loading fixtures…",
+        "location": {
+          "startingColumn": 26,
+          "startingLine": 23
+        }
+      },
+      {
+        "comment": "",
+        "key": "No Fixtures",
+        "location": {
+          "startingColumn": 17,
+          "startingLine": 31
+        }
+      },
+      {
+        "comment": "",
+        "key": "Couldn’t Load Fixtures",
+        "location": {
+          "startingColumn": 23,
+          "startingLine": 38
+        }
+      },
+      {
+        "comment": "",
+        "key": "Try Again",
+        "location": {
+          "startingColumn": 24,
+          "startingLine": 42
+        }
+      }
+    ]
+  },
+  "version": 1
+}
