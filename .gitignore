@@ -1,0 +1,24 @@
+# Xcode / build output
+build/
+DerivedData/
+*.xcuserstate
+xcuserdata/
+*.xcscmblueprint
+*.xccheckout
+
+# macOS
+.DS_Store
+
+# Swift Package Manager
+.swiftpm/
+.build/
+
+# Supabase
+supabase/.branches
+supabase/.temp
+supabase/.env
+supabase/.env.local
+
+# Secrets — never commit
+*.xcconfig.local
+Secrets.swift

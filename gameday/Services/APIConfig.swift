@@ -28,7 +28,8 @@ enum APIConfig {
     static let leagueIDs = [
         MatchLeague.premierLeagueID,
         MatchLeague.laLigaID,
-        MatchLeague.championsLeagueID,
+        MatchLeague.bundesligaID,
+        MatchLeague.serieAID,
     ]
 
     /// Season string TheSportsDB expects for `eventsround` / `eventsseason`

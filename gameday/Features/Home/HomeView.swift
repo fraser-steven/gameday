@@ -7,6 +7,7 @@ import SwiftUI
 
 struct HomeView: View {
     @State private var model = HomeViewModel()
+    @State private var selectedMatch: Match?
 
     var body: some View {
         NavigationStack {
@@ -14,6 +15,9 @@ struct HomeView: View {
                 .navigationTitle("This Week")
         }
         .task { await model.load() }
+        .sheet(item: $selectedMatch) { match in
+            MatchTipView(match: match, prediction: model.prediction(for: match))
+        }
     }
 
     @ViewBuilder
@@ -30,7 +34,7 @@ struct HomeView: View {
             ContentUnavailableView(
                 "No Fixtures This Week",
                 systemImage: "calendar",
-                description: Text("No Premier League, La Liga or Champions League matches are scheduled between now and Sunday.")
+                description: Text("No Premier League, La Liga, Bundesliga or Serie A matches are scheduled between now and Sunday.")
             )
 
         case .failed(let message):
@@ -53,7 +57,12 @@ struct HomeView: View {
                 ForEach(groupedByDay(matches), id: \.day) { group in
                     Section {
                         ForEach(group.matches) { match in
-                            FixtureCard(match: match)
+                            Button {
+                                selectedMatch = match
+                            } label: {
+                                FixtureCard(match: match, hasTip: model.prediction(for: match) != nil)
+                            }
+                            .buttonStyle(.plain)
                         }
                     } header: {
                         Text(group.day, format: .dateTime.weekday(.wide).day().month(.wide))

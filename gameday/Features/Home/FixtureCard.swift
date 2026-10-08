@@ -8,6 +8,7 @@ import SwiftUI
 /// A single match shown on the Home screen.
 struct FixtureCard: View {
     let match: Match
+    var hasTip: Bool = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
@@ -18,12 +19,21 @@ struct FixtureCard: View {
                 centre
                 team(match.awayTeam)
             }
+
+            if hasTip {
+                Label("View insight", systemImage: "sparkles")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(match.league.accentColor)
+                    .frame(maxWidth: .infinity, alignment: .trailing)
+            }
         }
         .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(.fill.quinary, in: .rect(cornerRadius: 16))
+        .contentShape(.rect)
         .accessibilityElement(children: .combine)
         .accessibilityLabel(accessibilityLabel)
+        .accessibilityHint(hasTip ? "Double tap for the match insight" : "")
     }
 
     private var header: some View {

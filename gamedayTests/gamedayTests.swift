@@ -70,3 +70,63 @@ struct APIConnectionTests {
         print("This week: \(matches.count) matches across \(leagues.joined(separator: ", "))")
     }
 }
+
+/// Offline checks for the prediction layer.
+struct PredictionTests {
+
+    @Test
+    func decodesAPredictionRow() throws {
+        let json = """
+        [{
+          "fixture_id": "2494027",
+          "league_id": "4328",
+          "season": "2026-2027",
+          "home_team": "Arsenal",
+          "away_team": "Liverpool",
+          "kickoff": "2026-09-13T15:30:00+00:00",
+          "prob_home": 0.47,
+          "prob_draw": 0.27,
+          "prob_away": 0.26,
+          "prob_btts_yes": 0.58,
+          "pick": "home",
+          "confidence": "medium",
+          "rationale": "Arsenal's home form gives them the edge.",
+          "model_version": "poisson-dc-v1",
+          "generated_at": "2026-09-11T02:00:00.123456+00:00"
+        }]
+        """.data(using: .utf8)!
+
+        let rows = try PredictionService.makeDecoder().decode([Prediction].self, from: json)
+        let prediction = try #require(rows.first)
+
+        #expect(prediction.fixtureID == "2494027")
+        #expect(prediction.pick == .home)
+        #expect(prediction.confidence == .medium)
+        #expect(prediction.bttsYesPercent == 58)
+        #expect(prediction.pickProbability == 0.47)
+        #expect(prediction.headline(homeName: "Arsenal", awayName: "Liverpool") == "Arsenal to win")
+        // Fractional seconds in the timestamp must not break decoding.
+        #expect(prediction.generatedAt.timeIntervalSince1970 > 0)
+    }
+
+    @Test
+    func decodesANullRationale() throws {
+        let json = """
+        {"fixture_id":"1","league_id":"4331","season":null,"home_team":"A","away_team":"B",
+         "kickoff":"2026-09-13T19:00:00+00:00","prob_home":0.4,"prob_draw":0.3,"prob_away":0.3,
+         "prob_btts_yes":0.54,"pick":"home","confidence":"medium","rationale":null,
+         "model_version":"poisson-dc-v1","generated_at":"2026-09-11T02:00:00+00:00"}
+        """.data(using: .utf8)!
+
+        let prediction = try PredictionService.makeDecoder().decode(Prediction.self, from: json)
+        #expect(prediction.rationale == nil)
+        #expect(prediction.pick == .home)
+    }
+
+    @Test
+    func parsesTimestampsWithAndWithoutFractionalSeconds() {
+        #expect(PredictionService.parseTimestamp("2026-09-13T15:30:00+00:00") != nil)
+        #expect(PredictionService.parseTimestamp("2026-09-11T02:00:00.123456+00:00") != nil)
+        #expect(PredictionService.parseTimestamp("not a date") == nil)
+    }
+}
