@@ -17,13 +17,9 @@ final class TipsViewModel {
     }
 
     func load() async {
-
-        async let matchesTask = footballService.matchesThisWeek(leagueIDs: APIConfig.leagueIDs)
-        async let predictionsTask = predictionService.predictions()
-
         do {
-            let matches = try await matchesTask
-            let predictions = (try? await predictionsTask) ?? [:]
+            let matches = try await footballService.matchesThisWeek(leagueIDs: APIConfig.leagueIDs)
+            let predictions = await predictionService.predictions(for: matches)
 
             var candidates: [Tip] = []
             for match in matches {

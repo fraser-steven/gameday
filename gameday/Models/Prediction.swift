@@ -2,16 +2,18 @@
 //  Prediction.swift
 //  gameday
 //
+//  A computed prediction for one fixture. Built in-memory by
+//  PredictionService (on-device), not decoded from JSON.
+//
 
 import Foundation
 
-/// A stored prediction for one fixture, from the Supabase `predictions` table.
-struct Prediction: Decodable, Hashable {
-    enum Outcome: String, Decodable {
+struct Prediction: Hashable {
+    enum Outcome: String {
         case home, draw, away
     }
 
-    enum Confidence: String, Decodable {
+    enum Confidence: String {
         case low, medium, high
     }
 
@@ -30,22 +32,6 @@ struct Prediction: Decodable, Hashable {
     let rationale: String?
     let modelVersion: String
     let generatedAt: Date
-
-    private enum CodingKeys: String, CodingKey {
-        case fixtureID = "fixture_id"
-        case homeTeam = "home_team"
-        case awayTeam = "away_team"
-        case kickoff
-        case probHome = "prob_home"
-        case probDraw = "prob_draw"
-        case probAway = "prob_away"
-        case probBTTSYes = "prob_btts_yes"
-        case pick
-        case confidence
-        case rationale
-        case modelVersion = "model_version"
-        case generatedAt = "generated_at"
-    }
 }
 
 extension Prediction {

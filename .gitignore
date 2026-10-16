@@ -22,3 +22,4 @@ supabase/.env.local
 # Secrets — never commit
 *.xcconfig.local
 Secrets.swift
+GamedayEngine/.build/

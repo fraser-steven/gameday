@@ -71,62 +71,70 @@ struct APIConnectionTests {
     }
 }
 
-/// Offline checks for the prediction layer.
-struct PredictionTests {
+/// Offline checks for team-name reconciliation between TheSportsDB (short
+/// names) and openfootball (long official names).
+struct TeamNameMatcherTests {
 
     @Test
-    func decodesAPredictionRow() throws {
-        let json = """
-        [{
-          "fixture_id": "2494027",
-          "league_id": "4328",
-          "season": "2026-2027",
-          "home_team": "Arsenal",
-          "away_team": "Liverpool",
-          "kickoff": "2026-09-13T15:30:00+00:00",
-          "prob_home": 0.47,
-          "prob_draw": 0.27,
-          "prob_away": 0.26,
-          "prob_btts_yes": 0.58,
-          "pick": "home",
-          "confidence": "medium",
-          "rationale": "Arsenal's home form gives them the edge.",
-          "model_version": "poisson-dc-v1",
-          "generated_at": "2026-09-11T02:00:00.123456+00:00"
-        }]
-        """.data(using: .utf8)!
-
-        let rows = try PredictionService.makeDecoder().decode([Prediction].self, from: json)
-        let prediction = try #require(rows.first)
-
-        #expect(prediction.fixtureID == "2494027")
-        #expect(prediction.pick == .home)
-        #expect(prediction.confidence == .medium)
-        #expect(prediction.bttsYesPercent == 58)
-        #expect(prediction.pickProbability == 0.47)
-        #expect(prediction.headline(homeName: "Arsenal", awayName: "Liverpool") == "Arsenal to win")
-        // Fractional seconds in the timestamp must not break decoding.
-        #expect(prediction.generatedAt.timeIntervalSince1970 > 0)
+    func matchesBayernMunichViaAlias() {
+        let names = ["FC Bayern München", "Borussia Dortmund", "RB Leipzig"]
+        #expect(TeamNameMatcher.match("Bayern Munich", among: names) == "FC Bayern München")
     }
 
     @Test
-    func decodesANullRationale() throws {
-        let json = """
-        {"fixture_id":"1","league_id":"4331","season":null,"home_team":"A","away_team":"B",
-         "kickoff":"2026-09-13T19:00:00+00:00","prob_home":0.4,"prob_draw":0.3,"prob_away":0.3,
-         "prob_btts_yes":0.54,"pick":"home","confidence":"medium","rationale":null,
-         "model_version":"poisson-dc-v1","generated_at":"2026-09-11T02:00:00+00:00"}
-        """.data(using: .utf8)!
-
-        let prediction = try PredictionService.makeDecoder().decode(Prediction.self, from: json)
-        #expect(prediction.rationale == nil)
-        #expect(prediction.pick == .home)
+    func distinguishesInterMilanFromACMilan() {
+        let names = ["FC Internazionale Milano", "AC Milan", "Juventus FC"]
+        #expect(TeamNameMatcher.match("Inter Milan", among: names) == "FC Internazionale Milano")
+        #expect(TeamNameMatcher.match("AC Milan", among: names) == "AC Milan")
     }
 
     @Test
-    func parsesTimestampsWithAndWithoutFractionalSeconds() {
-        #expect(PredictionService.parseTimestamp("2026-09-13T15:30:00+00:00") != nil)
-        #expect(PredictionService.parseTimestamp("2026-09-11T02:00:00.123456+00:00") != nil)
-        #expect(PredictionService.parseTimestamp("not a date") == nil)
+    func matchesByTokenSubset() {
+        let names = ["Real Madrid CF", "FC Barcelona"]
+        #expect(TeamNameMatcher.match("Real Madrid", among: names) == "Real Madrid CF")
+    }
+
+    @Test
+    func matchesByPrefix() {
+        // "athen" is a 5-char prefix of "athens" — not an exact token match,
+        // but close enough to resolve.
+        let names = ["AEK Athen", "PAOK Saloniki"]
+        #expect(TeamNameMatcher.match("AEK Athens", among: names) == "AEK Athen")
+    }
+
+    @Test
+    func returnsNilWhenNothingQualifies() {
+        let names = ["Real Madrid CF", "FC Barcelona"]
+        #expect(TeamNameMatcher.match("Manchester United", among: names) == nil)
+    }
+}
+
+/// Live integration check for the on-device prediction pipeline (history
+/// fetch -> IPF fit -> cached -> read back as predictions). Hits the network.
+struct PredictionServiceTests {
+
+    @Test
+    func predictionsBecomeAvailableAfterTriggerRefresh() async throws {
+        let service = PredictionService()
+        await service.triggerRefresh()
+
+        let matches = try await FootballService().matchesThisWeek(leagueIDs: APIConfig.leagueIDs)
+        try #require(!matches.isEmpty, "No fixtures this week to predict against.")
+
+        var predictions: [String: Prediction] = [:]
+        for _ in 0..<15 {
+            predictions = await service.predictions(for: matches)
+            if !predictions.isEmpty { break }
+            try await Task.sleep(for: .seconds(2))
+        }
+
+        #expect(!predictions.isEmpty, "No predictions appeared within the polling window.")
+
+        if let first = predictions.values.first {
+            let total = first.probHome + first.probDraw + first.probAway
+            #expect(total > 0.97 && total < 1.03)
+            #expect((0...1).contains(first.probBTTSYes))
+            #expect(first.modelVersion == "ondevice-ipf-v1")
+        }
     }
 }

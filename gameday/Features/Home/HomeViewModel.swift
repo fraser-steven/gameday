@@ -40,34 +40,31 @@ final class HomeViewModel {
     func load() async {
         if case .failed = state { state = .loading }
 
-        // Nudge the backend to regenerate predictions; it no-ops if still fresh.
+        // Nudge the on-device fit to refresh; it no-ops per league if still fresh.
         Task { await predictionService.triggerRefresh() }
 
-        async let fixtures = service.matchesThisWeek(leagueIDs: leagueIDs)
-        async let cached = predictionService.predictions()
-
-        predictions = (try? await cached) ?? predictions
-
         do {
-            let matches = try await fixtures
+            let matches = try await service.matchesThisWeek(leagueIDs: leagueIDs)
             state = matches.isEmpty ? .empty : .loaded(matches)
+            predictions = await predictionService.predictions(for: matches)
+            schedulePredictionRefetch(matches: matches)
         } catch is CancellationError {
             // View went away; leave state as-is.
         } catch {
             state = .failed(error.localizedDescription)
         }
-
-        schedulePredictionRefetch()
     }
 
-    /// A cold backend run takes a few seconds to populate; pick the rows up once
-    /// more shortly after so the first launch doesn't need a manual relaunch.
-    private func schedulePredictionRefetch() {
+    /// A cold fit takes a few seconds to land on disk; look the same fixtures
+    /// up again shortly after so the first launch doesn't need a manual
+    /// relaunch. Reuses the fixture list from `load()` rather than re-fetching
+    /// it — this is a local file read + the C model, not a network call.
+    private func schedulePredictionRefetch(matches: [Match]) {
         predictionRefetch?.cancel()
         predictionRefetch = Task { [predictionService] in
             try? await Task.sleep(for: .seconds(15))
-            guard !Task.isCancelled, let fresh = try? await predictionService.predictions() else { return }
-            predictions = fresh
+            guard !Task.isCancelled else { return }
+            predictions = await predictionService.predictions(for: matches)
         }
     }
 }

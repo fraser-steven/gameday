@@ -2,99 +2,146 @@
 //  PredictionService.swift
 //  gameday
 //
-//  Talks to Supabase over plain REST (no SDK, matching FootballService):
-//  - triggers the `refresh-predictions` Edge Function on app launch
-//  - reads cached rows from the `predictions` table
+//  Computes match predictions entirely on-device: fits a Dixon-Coles-style
+//  goal model per league from openfootball history (via GamedayEngine's C
+//  iterative-proportional-fitting engine), caches the fit locally, and turns
+//  it into 1X2 + BTTS probabilities for whichever fixtures the caller asks
+//  about. Reading predictions is a pure local file-read + C computation — no
+//  network call — so a flaky fixture-list fetch elsewhere can never wipe
+//  already-computed predictions out from under the UI.
 //
 
 import Foundation
+import GamedayEngine
 
 actor PredictionService {
-    private let session: URLSession
-    private let decoder: JSONDecoder
+    /// Recent-form weighting — same half-life as the (retired) edge function.
+    private static let timeDecay = 0.0018
 
-    init(session: URLSession = .shared) {
-        self.session = session
-        self.decoder = Self.makeDecoder()
+    private let historyFetcher: HistoryFetcher
+    private let modelStore: LeagueModelStore
+
+    private var refitsInFlight: Set<String> = []
+
+    init(
+        historyFetcher: HistoryFetcher = HistoryFetcher(),
+        modelStore: LeagueModelStore = LeagueModelStore()
+    ) {
+        self.historyFetcher = historyFetcher
+        self.modelStore = modelStore
     }
 
-    /// A `JSONDecoder` configured for PostgREST rows. Shared with tests.
-    static func makeDecoder() -> JSONDecoder {
-        let decoder = JSONDecoder()
-        decoder.dateDecodingStrategy = .custom { decoder in
-            let raw = try decoder.singleValueContainer().decode(String.self)
-            guard let date = parseTimestamp(raw) else {
-                throw DecodingError.dataCorrupted(.init(
-                    codingPath: decoder.codingPath,
-                    debugDescription: "Unrecognised timestamp: \(raw)"
-                ))
-            }
-            return date
-        }
-        return decoder
-    }
-
-    /// Fire-and-forget nudge to regenerate predictions. The function no-ops if the
-    /// data is still fresh, so calling this on every launch is cheap.
+    /// Refits any modelled league whose cached fit is missing or stale.
+    /// Fire-and-forget and safe to call repeatedly (e.g. every app launch) —
+    /// leagues already refitting or still fresh are skipped.
     func triggerRefresh() async {
-        guard SupabaseConfig.isConfigured else { return }
-        var request = URLRequest(url: SupabaseConfig.functionsURL.appending(path: "refresh-predictions"))
-        request.httpMethod = "POST"
-        request.timeoutInterval = 8
-        applyAuth(&request)
-        _ = try? await session.data(for: request)
+        for leagueID in APIConfig.leagueIDs {
+            guard await modelStore.isStale(leagueID: leagueID), !refitsInFlight.contains(leagueID) else {
+                continue
+            }
+            refitsInFlight.insert(leagueID)
+            Task { [weak self] in
+                await self?.refit(leagueID: leagueID)
+            }
+        }
     }
 
-    /// All cached predictions for fixtures that haven't kicked off long ago,
-    /// keyed by fixture id (TheSportsDB `idEvent`).
-    func predictions() async throws -> [String: Prediction] {
-        guard SupabaseConfig.isConfigured else { return [:] }
+    /// A prediction for each of `matches`, computed from the currently cached
+    /// fit for its league. `matches` is supplied by the caller (who already
+    /// fetched it to display) rather than fetched here, so this never makes a
+    /// network call. Fixtures whose league has no fit yet, or whose team
+    /// isn't recognised within it, are simply omitted (the UI already treats
+    /// "no prediction" as a normal state).
+    func predictions(for matches: [Match]) async -> [String: Prediction] {
+        var result: [String: Prediction] = [:]
+        for match in matches {
+            guard let fit = await modelStore.load(leagueID: match.league.id) else { continue }
+            guard
+                let homeName = TeamNameMatcher.match(match.homeTeam.name, among: fit.teamNames),
+                let homeIndex = fit.teamNames.firstIndex(of: homeName),
+                let awayName = TeamNameMatcher.match(match.awayTeam.name, among: fit.teamNames),
+                let awayIndex = fit.teamNames.firstIndex(of: awayName)
+            else { continue }
 
-        let since = ISO8601DateFormatter().string(from: Date().addingTimeInterval(-86_400))
-        var components = URLComponents(
-            url: SupabaseConfig.restURL.appending(path: "predictions"),
-            resolvingAgainstBaseURL: false
+            let lambdaHome = fit.attack[homeIndex] * fit.defence[awayIndex] * fit.homeAdvantage
+            let lambdaAway = fit.attack[awayIndex] * fit.defence[homeIndex]
+            guard let markets = Engine.markets(lambdaHome: lambdaHome, lambdaAway: lambdaAway) else { continue }
+
+            let (pick, confidence) = Self.pickAndConfidence(markets)
+            result[match.id] = Prediction(
+                fixtureID: match.id,
+                homeTeam: match.homeTeam.name,
+                awayTeam: match.awayTeam.name,
+                kickoff: match.kickoff,
+                probHome: markets.home,
+                probDraw: markets.draw,
+                probAway: markets.away,
+                probBTTSYes: markets.bttsYes,
+                pick: pick,
+                confidence: confidence,
+                rationale: nil,
+                modelVersion: "ondevice-ipf-v1",
+                generatedAt: fit.generatedAt
+            )
+        }
+        return result
+    }
+
+    // MARK: - Fitting
+
+    private func refit(leagueID: String) async {
+        defer { refitsInFlight.remove(leagueID) }
+
+        let history = await historyFetcher.history(forLeagueID: leagueID)
+        guard !history.isEmpty else { return }
+
+        let teamNames = Array(Set(history.flatMap { [$0.home, $0.away] })).sorted()
+        guard (2...64).contains(teamNames.count) else { return }
+        let indexOf = Dictionary(uniqueKeysWithValues: teamNames.enumerated().map { ($1, Int32($0)) })
+
+        let now = Date()
+        var homeIndex: [Int32] = []
+        var awayIndex: [Int32] = []
+        var homeGoals: [Int32] = []
+        var awayGoals: [Int32] = []
+        var weights: [Double] = []
+
+        for match in history {
+            guard let h = indexOf[match.home], let a = indexOf[match.away] else { continue }
+            let ageDays = now.timeIntervalSince(match.date) / 86_400
+            guard ageDays >= 0 else { continue }
+
+            homeIndex.append(h)
+            awayIndex.append(a)
+            homeGoals.append(Int32(match.homeGoals))
+            awayGoals.append(Int32(match.awayGoals))
+            weights.append(exp(-Self.timeDecay * ageDays))
+        }
+
+        guard !homeIndex.isEmpty, let fit = Engine.fit(
+            homeIndex: homeIndex, awayIndex: awayIndex,
+            homeGoals: homeGoals, awayGoals: awayGoals,
+            weight: weights, teamCount: teamNames.count
+        ) else { return }
+
+        let stored = StoredLeagueFit(
+            teamNames: teamNames,
+            attack: fit.attack,
+            defence: fit.defence,
+            homeAdvantage: fit.homeAdvantage,
+            generatedAt: now
         )
-        components?.queryItems = [
-            URLQueryItem(name: "select", value: "*"),
-            URLQueryItem(name: "kickoff", value: "gte.\(since)"),
-            URLQueryItem(name: "order", value: "kickoff.asc"),
-        ]
-        guard let url = components?.url else { throw FootballError.invalidURL }
-
-        var request = URLRequest(url: url)
-        applyAuth(&request)
-
-        let (data, response) = try await session.data(for: request)
-        guard let http = response as? HTTPURLResponse else { throw FootballError.invalidResponse }
-        guard (200..<300).contains(http.statusCode) else { throw FootballError.httpStatus(http.statusCode) }
-
-        let rows = try decoder.decode([Prediction].self, from: data)
-        return Dictionary(rows.map { ($0.fixtureID, $0) }, uniquingKeysWith: { _, latest in latest })
+        try? await modelStore.save(stored, leagueID: leagueID)
     }
 
-    // MARK: - Helpers
-
-    private func applyAuth(_ request: inout URLRequest) {
-        request.setValue(SupabaseConfig.anonKey, forHTTPHeaderField: "apikey")
-        request.setValue("Bearer \(SupabaseConfig.anonKey)", forHTTPHeaderField: "Authorization")
-        request.setValue("application/json", forHTTPHeaderField: "Accept")
-    }
-
-    private static let plainISO: ISO8601DateFormatter = {
-        let formatter = ISO8601DateFormatter()
-        formatter.formatOptions = [.withInternetDateTime]
-        return formatter
-    }()
-
-    /// Internal (not private) so tests can exercise the timestamp parsing directly.
-    static func parseTimestamp(_ raw: String) -> Date? {
-        // PostgREST renders timestamptz as e.g. "2026-09-08T19:00:00+00:00", often
-        // with microseconds ("...00.123456+00:00"). Drop any fractional seconds
-        // (ISO8601DateFormatter only tolerates milliseconds) and a space separator.
-        let cleaned = raw
-            .replacingOccurrences(of: " ", with: "T")
-            .replacingOccurrences(of: #"\.\d+"#, with: "", options: .regularExpression)
-        return plainISO.date(from: cleaned)
+    private static func pickAndConfidence(_ markets: MarketProbabilities) -> (Prediction.Outcome, Prediction.Confidence) {
+        let top = max(markets.home, markets.draw, markets.away)
+        let pick: Prediction.Outcome = switch top {
+        case markets.home: .home
+        case markets.draw: .draw
+        default: .away
+        }
+        let confidence: Prediction.Confidence = top >= 0.55 ? .high : (top >= 0.4 ? .medium : .low)
+        return (pick, confidence)
     }
 }
