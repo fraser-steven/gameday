@@ -18,16 +18,16 @@ actor PredictionService {
     /// Recent-form weighting — same half-life as the (retired) edge function.
     private static let timeDecay = 0.0018
 
-    private let historyFetcher: HistoryFetcher
+    private let openfootballClient: OpenfootballClient
     private let modelStore: LeagueModelStore
 
     private var refitsInFlight: Set<String> = []
 
     init(
-        historyFetcher: HistoryFetcher = HistoryFetcher(),
+        openfootballClient: OpenfootballClient = OpenfootballClient(),
         modelStore: LeagueModelStore = LeagueModelStore()
     ) {
-        self.historyFetcher = historyFetcher
+        self.openfootballClient = openfootballClient
         self.modelStore = modelStore
     }
 
@@ -92,7 +92,7 @@ actor PredictionService {
     private func refit(leagueID: String) async {
         defer { refitsInFlight.remove(leagueID) }
 
-        let history = await historyFetcher.history(forLeagueID: leagueID)
+        let history = await openfootballClient.history(forLeagueID: leagueID)
         guard !history.isEmpty else { return }
 
         let teamNames = Array(Set(history.flatMap { [$0.home, $0.away] })).sorted()

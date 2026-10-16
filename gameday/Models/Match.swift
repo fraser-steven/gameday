@@ -23,6 +23,35 @@ struct Match: Identifiable, Hashable {
     let awayScore: Int?
 
     var hasScore: Bool { homeScore != nil && awayScore != nil }
+
+    /// Build directly from known values — used by non-TheSportsDB sources
+    /// (the openfootball fixture fallback in `OpenfootballClient`), bypassing
+    /// the TheSportsDB JSON decoding below.
+    init(
+        id: String,
+        league: MatchLeague,
+        homeTeam: MatchTeam,
+        awayTeam: MatchTeam,
+        kickoff: Date,
+        round: Int? = nil,
+        season: String? = nil,
+        venue: String? = nil,
+        status: MatchStatus,
+        homeScore: Int? = nil,
+        awayScore: Int? = nil
+    ) {
+        self.id = id
+        self.league = league
+        self.homeTeam = homeTeam
+        self.awayTeam = awayTeam
+        self.kickoff = kickoff
+        self.round = round
+        self.season = season
+        self.venue = venue
+        self.status = status
+        self.homeScore = homeScore
+        self.awayScore = awayScore
+    }
 }
 
 extension Match: Decodable {

@@ -1,13 +1,20 @@
 //
-//  HistoryFetcher.swift
+//  OpenfootballClient.swift
 //  gameday
 //
-//  Historical results for the on-device goal model, from
-//  openfootball/football.json on GitHub — hosted on raw.githubusercontent.com
-//  so there's no WAF, no rate limit, no User-Agent games. (football-data.co.uk
-//  was tried first and is blocked; bulk TheSportsDB fetching hits HTTP 429
-//  after ~30 calls — see supabase/functions/refresh-predictions/sources.ts,
-//  which this is a Swift port of the relevant half of.)
+//  Client for openfootball/football.json on GitHub — hosted on
+//  raw.githubusercontent.com so there's no WAF, no rate limit, no User-Agent
+//  games. (football-data.co.uk was tried first and is blocked; bulk
+//  TheSportsDB fetching hits HTTP 429 after ~30 calls — see
+//  supabase/functions/refresh-predictions/sources.ts, which this is a Swift
+//  port of the relevant half of.)
+//
+//  Two jobs:
+//   - history(forLeagueID:) — finished results for PredictionService's fit
+//   - fixtures(forLeagueID:in:) — this week's schedule (played or not), used
+//     by FootballService as a fallback when TheSportsDB is unreachable. Team
+//     crests aren't available from this source, so fixtures built this way
+//     have no badge images.
 //
 
 import Foundation
@@ -20,7 +27,7 @@ struct HistMatch: Equatable {
     let awayGoals: Int
 }
 
-actor HistoryFetcher {
+actor OpenfootballClient {
     private static let base = URL(string: "https://raw.githubusercontent.com/openfootball/football.json/master")!
     private static let isoFormatter: ISO8601DateFormatter = {
         let formatter = ISO8601DateFormatter()
@@ -69,12 +76,26 @@ actor HistoryFetcher {
 
         var all: [HistMatch] = []
         for season in Self.recentSeasonFolders() {
-            all += await matches(season: season, code: code)
+            let raw = await rawMatches(season: season, code: code)
+            all += raw.compactMap { $0.histMatch(isoFormatter: Self.isoFormatter) }
         }
         return all
     }
 
-    private func matches(season: String, code: String) async -> [HistMatch] {
+    /// This season's fixtures (played or not) for a league that fall inside
+    /// `window`. A fallback fixture source for when TheSportsDB can't be
+    /// reached — see `FootballService`.
+    func fixtures(forLeagueID leagueID: String, in window: DateInterval) async -> [Match] {
+        guard let code = Self.openfootballCode(forLeagueID: leagueID) else { return [] }
+        guard let season = Self.recentSeasonFolders(count: 1).first else { return [] }
+
+        let raw = await rawMatches(season: season, code: code)
+        return raw
+            .compactMap { $0.asMatch(leagueID: leagueID, isoFormatter: Self.isoFormatter) }
+            .filter { window.contains($0.kickoff) }
+    }
+
+    private func rawMatches(season: String, code: String) async -> [OpenfootballMatch] {
         let url = Self.base.appending(path: season).appending(path: "\(code).json")
         guard let (data, response) = try? await session.data(from: url),
               let http = response as? HTTPURLResponse,
@@ -82,7 +103,7 @@ actor HistoryFetcher {
               let payload = try? decoder.decode(OpenfootballSeason.self, from: data)
         else { return [] }
 
-        return payload.matches.compactMap { $0.histMatch(isoFormatter: Self.isoFormatter) }
+        return payload.matches
     }
 }
 
@@ -101,11 +122,40 @@ private struct OpenfootballMatch: Decodable {
         guard let date, let team1, let team2,
               let home = score?.homeGoals, let away = score?.awayGoals
         else { return nil }
-
-        let time = (time?.isEmpty == false) ? time! : "12:00"
-        guard let parsed = isoFormatter.date(from: "\(date)T\(time):00Z") else { return nil }
+        guard let parsed = kickoff(date: date, isoFormatter: isoFormatter) else { return nil }
 
         return HistMatch(date: parsed, home: team1, away: team2, homeGoals: home, awayGoals: away)
+    }
+
+    /// Any fixture — played or not — as the app's own `Match` type. No league
+    /// badge or team crests (openfootball doesn't carry images); status is
+    /// `.finished` when there's a score, `.scheduled` otherwise (openfootball
+    /// is a static snapshot, so in-play detection isn't possible from it).
+    func asMatch(leagueID: String, isoFormatter: ISO8601DateFormatter) -> Match? {
+        guard let date, let team1, let team2 else { return nil }
+        guard let kickoff = kickoff(date: date, isoFormatter: isoFormatter) else { return nil }
+
+        let homeGoals = score?.homeGoals
+        let awayGoals = score?.awayGoals
+        let id = ["of", leagueID, date, team1, team2]
+            .joined(separator: "-")
+            .replacingOccurrences(of: " ", with: "_")
+
+        return Match(
+            id: id,
+            league: MatchLeague(id: leagueID, name: leagueID, badge: nil),
+            homeTeam: MatchTeam(name: team1, badge: nil),
+            awayTeam: MatchTeam(name: team2, badge: nil),
+            kickoff: kickoff,
+            status: (homeGoals != nil && awayGoals != nil) ? .finished : .scheduled,
+            homeScore: homeGoals,
+            awayScore: awayGoals
+        )
+    }
+
+    private func kickoff(date: String, isoFormatter: ISO8601DateFormatter) -> Date? {
+        let time = (time?.isEmpty == false) ? time! : "12:00"
+        return isoFormatter.date(from: "\(date)T\(time):00Z")
     }
 }
 

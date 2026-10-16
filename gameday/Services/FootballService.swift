@@ -8,6 +8,11 @@
 //  handful of rows on the free keys, but `eventsround` returns a complete
 //  match-round, so the week view is assembled from rounds.
 //
+//  TheSportsDB occasionally rate-limits or goes down outright; when a
+//  league's fetch comes back empty, `OpenfootballClient` (GitHub-hosted,
+//  no rate limit, no WAF) steps in with that league's scheduled fixtures —
+//  without team crests, since openfootball doesn't carry images.
+//
 
 import Foundation
 
@@ -15,9 +20,11 @@ actor FootballService {
     private let session: URLSession
     private let decoder = JSONDecoder()
     private let calendar: Calendar
+    private let openfootballClient: OpenfootballClient
 
-    init(session: URLSession = .shared) {
+    init(session: URLSession = .shared, openfootballClient: OpenfootballClient = OpenfootballClient()) {
         self.session = session
+        self.openfootballClient = openfootballClient
 
         var calendar = Calendar(identifier: .gregorian)
         calendar.firstWeekday = 2 // Monday
@@ -77,7 +84,12 @@ actor FootballService {
             return all
         }
 
-        return (next + past + roundMatches).filter { week.contains($0.kickoff) }
+        let tsdbMatches = (next + past + roundMatches).filter { week.contains($0.kickoff) }
+        guard tsdbMatches.isEmpty else { return tsdbMatches }
+
+        // TheSportsDB gave us nothing for this league (rate-limited, down,
+        // etc.) — fall back to openfootball's scheduled fixtures.
+        return await openfootballClient.fixtures(forLeagueID: leagueID, in: week)
     }
 
     private func round(_ round: Int, leagueID: String) async throws -> [Match] {
