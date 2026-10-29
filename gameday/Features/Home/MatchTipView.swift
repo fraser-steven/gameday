@@ -2,11 +2,14 @@
 //  MatchTipView.swift
 //  gameday
 //
+//  The model's lean on a match: the result and both-teams-to-score, or a
+//  "check back later" state. Presentation-agnostic — HomeView pushes this
+//  as a navigation destination (with a zoom transition from the tapped
+//  card), so it owns no NavigationStack or dismiss chrome of its own.
+//
 
 import SwiftUI
 
-/// Bottom sheet shown when a fixture card is tapped: the model's lean on the
-/// result and both-teams-to-score, or a "check back later" state.
 struct MatchTipView: View {
     let match: Match
     let prediction: Prediction?
@@ -15,37 +18,27 @@ struct MatchTipView: View {
     /// countdown instead, so users see the freshest read.
     private static let leadTime: TimeInterval = 72 * 3600
 
-    @Environment(\.dismiss) private var dismiss
-
     private var isWithinLeadTime: Bool {
         match.kickoff.timeIntervalSinceNow <= Self.leadTime
     }
 
     var body: some View {
-        NavigationStack {
-            ScrollView {
-                VStack(spacing: 20) {
-                    matchHeader
+        ScrollView {
+            VStack(spacing: 20) {
+                matchHeader
 
-                    if let prediction, isWithinLeadTime {
-                        tip(prediction)
-                    } else if !isWithinLeadTime {
-                        comeBackLater
-                    } else {
-                        unavailable
-                    }
-                }
-                .padding()
-            }
-            .navigationTitle("Match Insight")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Done") { dismiss() }
+                if let prediction, isWithinLeadTime {
+                    tip(prediction)
+                } else if !isWithinLeadTime {
+                    comeBackLater
+                } else {
+                    unavailable
                 }
             }
+            .padding()
         }
-        .presentationDetents([.medium, .large])
+        .navigationTitle("Match Insight")
+        .navigationBarTitleDisplayMode(.inline)
     }
 
     // MARK: - Header
@@ -87,7 +80,7 @@ struct MatchTipView: View {
                 }
             }
 
-            resultBar(prediction)
+            ResultBar(prediction: prediction, accentColor: match.league.accentColor)
 
             bttsRow(prediction)
 
@@ -100,39 +93,6 @@ struct MatchTipView: View {
             }
 
             footer(prediction)
-        }
-    }
-
-    private func resultBar(_ prediction: Prediction) -> some View {
-        VStack(spacing: 8) {
-            GeometryReader { geo in
-                HStack(spacing: 2) {
-                    segment(width: geo.size.width, fraction: prediction.probHome, color: match.league.accentColor)
-                    segment(width: geo.size.width, fraction: prediction.probDraw, color: .gray)
-                    segment(width: geo.size.width, fraction: prediction.probAway, color: match.league.accentColor.opacity(0.5))
-                }
-            }
-            .frame(height: 10)
-            .clipShape(.capsule)
-
-            HStack {
-                outcomeLabel("Home", prediction.probHome)
-                Spacer()
-                outcomeLabel("Draw", prediction.probDraw)
-                Spacer()
-                outcomeLabel("Away", prediction.probAway)
-            }
-        }
-    }
-
-    private func segment(width: CGFloat, fraction: Double, color: Color) -> some View {
-        color.frame(width: max(2, width * fraction))
-    }
-
-    private func outcomeLabel(_ title: String, _ probability: Double) -> some View {
-        VStack(spacing: 2) {
-            Text(title).font(.caption2).foregroundStyle(.secondary)
-            Text(percent(probability)).font(.caption.weight(.semibold).monospacedDigit())
         }
     }
 

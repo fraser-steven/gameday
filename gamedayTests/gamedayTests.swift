@@ -35,12 +35,14 @@ struct APIConnectionTests {
         print("TheSportsDB OK — \(events.count) fixtures in Premier League round 4")
     }
 
-    /// The service assembles this week's fixtures across all three leagues,
-    /// keeps them inside the Monday–Sunday window, and sorts them.
+    /// The service assembles the rest of this week's fixtures across all
+    /// leagues — nothing already kicked off — keeps them inside the window
+    /// through Sunday, and sorts them.
     @Test
     func serviceReturnsThisWeekSortedAndInRange() async throws {
         let service = FootballService()
-        let matches = try await service.matchesThisWeek(leagueIDs: APIConfig.leagueIDs)
+        let now = Date.now
+        let matches = try await service.matchesThisWeek(leagueIDs: APIConfig.leagueIDs, now: now)
 
         #expect(!matches.isEmpty, "No matches found for the current week.")
 
@@ -49,13 +51,14 @@ struct APIConnectionTests {
             "Matches should be sorted by kick-off, soonest first."
         )
 
-        // All kick-offs land within this Monday…Sunday.
+        // No match has already kicked off, and nothing is beyond this Sunday.
         var calendar = Calendar(identifier: .gregorian)
         calendar.firstWeekday = 2
-        let weekStart = try #require(calendar.dateInterval(of: .weekOfYear, for: .now)?.start)
+        let weekStart = try #require(calendar.dateInterval(of: .weekOfYear, for: now)?.start)
         let weekEnd = try #require(calendar.date(byAdding: .day, value: 7, to: weekStart))
         for match in matches {
-            #expect(match.kickoff >= weekStart && match.kickoff < weekEnd)
+            #expect(match.kickoff >= now, "\(match.homeTeam.name) v \(match.awayTeam.name) already kicked off.")
+            #expect(match.kickoff < weekEnd)
         }
 
         // IDs are unique (rounds overlap, so de-duplication must work).

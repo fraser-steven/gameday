@@ -1,3 +1,5 @@
+import Foundation
+
 struct Tip: Identifiable {
     let id: String                  // "<fixtureID>-1x2" or "<fixtureID>-btts" — keep both IDs unique
     let match: Match                 // gives you league color/badge, crests, kickoff
@@ -34,5 +36,21 @@ struct Tip: Identifiable {
 
     return [matchResultTip, bttsTip]
 }
+
+    /// Every win/BTTS candidate across `matches`, restricted to fixtures
+    /// within `leadTime` of kickoff, ranked most-confident first.
+    static func ranked(
+        matches: [Match],
+        predictions: [String: Prediction],
+        leadTime: TimeInterval = 72 * 3600
+    ) -> [Tip] {
+        var candidates: [Tip] = []
+        for match in matches {
+            guard let prediction = predictions[match.id] else { continue }
+            guard match.kickoff.timeIntervalSinceNow <= leadTime else { continue }
+            candidates += Tip.candidates(match: match, prediction: prediction)
+        }
+        return candidates.sorted { $0.probability > $1.probability }
+    }
 }
 

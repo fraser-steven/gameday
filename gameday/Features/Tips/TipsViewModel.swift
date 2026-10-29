@@ -7,6 +7,7 @@ final class TipsViewModel {
 
     private let footballService: FootballService
     private let predictionService: PredictionService
+    private var hasLoadedOnce = false
 
     init(
         footballService: FootballService = FootballService(),
@@ -16,19 +17,21 @@ final class TipsViewModel {
         self.predictionService = predictionService
     }
 
+    /// See `HomeViewModel.loadIfNeeded()` — `.task` can re-run on every tab
+    /// revisit, so this avoids an unnecessary refetch each time. `load()`
+    /// stays available for pull-to-refresh and the "Try Again" button.
+    func loadIfNeeded() async {
+        guard !hasLoadedOnce else { return }
+        hasLoadedOnce = true
+        await load()
+    }
+
     func load() async {
         do {
             let matches = try await footballService.matchesThisWeek(leagueIDs: APIConfig.leagueIDs)
             let predictions = await predictionService.predictions(for: matches)
 
-            var candidates: [Tip] = []
-            for match in matches {
-                guard let prediction = predictions[match.id] else { continue }
-                guard match.kickoff.timeIntervalSinceNow <= 72 * 3600 else { continue } 
-                candidates += Tip.candidates(match: match, prediction: prediction)
-            }
-
-            let top5 = Array(candidates.sorted { $0.probability > $1.probability }.prefix(5))
+            let top5 = Array(Tip.ranked(matches: matches, predictions: predictions).prefix(5))
             state = top5.isEmpty ? .empty : .loaded(top5)
         } catch {
             state = .failed(error.localizedDescription)

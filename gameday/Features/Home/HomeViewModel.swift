@@ -17,11 +17,15 @@ final class HomeViewModel {
 
     private(set) var state: ViewState = .loading
     private(set) var predictions: [String: Prediction] = [:]
+    /// The week's single highest-confidence tip, regardless of any league
+    /// filter the Home list is showing — used for the hero card.
+    private(set) var featuredTip: Tip?
 
     private let service: FootballService
     private let predictionService: PredictionService
     private let leagueIDs: [String]
     private var predictionRefetch: Task<Void, Never>?
+    private var hasLoadedOnce = false
 
     init(
         service: FootballService = FootballService(),
@@ -37,6 +41,19 @@ final class HomeViewModel {
         predictions[match.id]
     }
 
+    /// Called from `.task`, which SwiftUI can re-run every time the view
+    /// reappears (e.g. switching tabs away and back). Without this guard
+    /// that refetches on every visit, and a transient TheSportsDB hiccup
+    /// mid-refetch would replace a good, crest-bearing match list with the
+    /// openfootball fallback's crest-less one — the reported "logos
+    /// disappear after visiting Tips" bug. `load()` itself stays available
+    /// for pull-to-refresh, which should always hit the network again.
+    func loadIfNeeded() async {
+        guard !hasLoadedOnce else { return }
+        hasLoadedOnce = true
+        await load()
+    }
+
     func load() async {
         if case .failed = state { state = .loading }
 
@@ -46,7 +63,7 @@ final class HomeViewModel {
         do {
             let matches = try await service.matchesThisWeek(leagueIDs: leagueIDs)
             state = matches.isEmpty ? .empty : .loaded(matches)
-            predictions = await predictionService.predictions(for: matches)
+            await refreshPredictions(for: matches)
             schedulePredictionRefetch(matches: matches)
         } catch is CancellationError {
             // View went away; leave state as-is.
@@ -61,10 +78,16 @@ final class HomeViewModel {
     /// it — this is a local file read + the C model, not a network call.
     private func schedulePredictionRefetch(matches: [Match]) {
         predictionRefetch?.cancel()
-        predictionRefetch = Task { [predictionService] in
+        predictionRefetch = Task { [weak self] in
             try? await Task.sleep(for: .seconds(15))
             guard !Task.isCancelled else { return }
-            predictions = await predictionService.predictions(for: matches)
+            await self?.refreshPredictions(for: matches)
         }
+    }
+
+    private func refreshPredictions(for matches: [Match]) async {
+        let fresh = await predictionService.predictions(for: matches)
+        predictions = fresh
+        featuredTip = Tip.ranked(matches: matches, predictions: fresh).first
     }
 }

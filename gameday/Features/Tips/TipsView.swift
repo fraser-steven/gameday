@@ -8,7 +8,7 @@ struct TipsView: View {
             content
                 .navigationTitle("Tips")
         }
-        .task { await model.load() }
+        .task { await model.loadIfNeeded() }
     }
 
     @ViewBuilder

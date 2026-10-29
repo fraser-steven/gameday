@@ -33,15 +33,17 @@ actor FootballService {
 
     // MARK: - Public
 
-    /// Every fixture across the given leagues that kicks off during the current
-    /// week — Monday 00:00 through Sunday 23:59 in the device's time zone —
-    /// de-duplicated and sorted by kick-off (soonest first).
+    /// Every upcoming fixture across the given leagues through the end of the
+    /// current week (Sunday 23:59 in the device's time zone) — i.e. from right
+    /// now, not from Monday, so already-finished matches never show up.
+    /// De-duplicated and sorted by kick-off (soonest first).
     func matchesThisWeek(leagueIDs: [String], now: Date = .now) async throws -> [Match] {
-        let week = weekInterval(containing: now)
+        let calendarWeek = weekInterval(containing: now)
+        let window = DateInterval(start: max(calendarWeek.start, now), end: calendarWeek.end)
 
         let collected = try await withThrowingTaskGroup(of: [Match].self) { group in
             for id in leagueIDs {
-                group.addTask { try await self.matches(in: week, leagueID: id) }
+                group.addTask { try await self.matches(in: window, leagueID: id) }
             }
             var all: [Match] = []
             for try await batch in group { all.append(contentsOf: batch) }
