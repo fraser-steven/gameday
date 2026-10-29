@@ -11,5 +11,6 @@ let package = Package(
         .target(name: "CGamedayEngine"),
         .target(name: "GamedayEngine", dependencies: ["CGamedayEngine"]),
         .testTarget(name: "GamedayEngineTests", dependencies: ["GamedayEngine"]),
+        .executableTarget(name: "Backtest", dependencies: ["GamedayEngine"]),
     ]
 )
